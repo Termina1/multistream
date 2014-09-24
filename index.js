@@ -28,13 +28,12 @@ MultiStream.prototype._read = function () {
   this._forward()
 }
 
-MultiStream.prototype._forward = function () {
-  if (this._forwarding || !this._drained) return
+MultiStream.prototype._forward = function (chunk) {
+  if (this._forwarding) return
   this._forwarding = true
 
-  var chunk
-  while ((chunk = this._current.read()) !== null) {
-    this._drained = this.push(chunk)
+  if(chunk) {
+    this.push(chunk)
   }
 
   this._forwarding = false
@@ -43,7 +42,7 @@ MultiStream.prototype._forward = function () {
 MultiStream.prototype.destroy = function (err) {
   if (this.destroyed) return
   this.destroyed = true
-  
+
   if (this._current && this._current.destroy) this._current.destroy()
   this._queue.forEach(function (stream) {
     if (stream.destroy) stream.destroy()
@@ -65,14 +64,13 @@ MultiStream.prototype._next = function () {
   }
 
   this._current = stream
-
-  stream.on('readable', onReadable)
+  stream.on('data', onReadable)
   stream.on('end', onEnd)
   stream.on('error', onError)
   stream.on('close', onClose)
 
-  function onReadable () {
-    self._forward()
+  function onReadable (chunk) {
+    self._forward(chunk)
   }
 
   function onClose () {
@@ -83,7 +81,7 @@ MultiStream.prototype._next = function () {
 
   function onEnd () {
     self._current = null
-    stream.removeListener('readable', onReadable)
+    stream.removeListener('data', onReadable)
     stream.removeListener('end', onEnd)
     stream.removeListener('error', onError)
     stream.removeListener('close', onClose)
